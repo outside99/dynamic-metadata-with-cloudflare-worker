@@ -1,20 +1,20 @@
 export default {
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
+  async fetch(req: Request): Promise<Response> {
+    const url = new URL(req.url);
 
-    /* 1) ловим /article-public/<id> или с конечным слэшем */
-    const match = url.pathname.match(/^\/article-public\/(\d+)\/?$/);
-    if (match) {
-      const id = match[1];
+    /* 1. ловим /article-public/<id> */
+    const m = url.pathname.match(/^\/article-public\/(\d+)\/?$/);
+    if (m) {
+      const id = m[1];
 
-      /* 2) берём метаданные из публичного Xano */
+      /* 2. берём метаданные из Xano */
       const meta = await fetch(
         `https://xdil-abvj-o7rq.e2.xano.io/api:d9B0M9b/public_content_article_metadata/${id}`
       ).then(r => r.json() as Promise<{
         title: string; description: string; image?: string;
       }>);
 
-      /* 3) генерируем короткий HTML с OG-тегами */
+      /* 3. генерируем OG-HTML */
       const html = `<!doctype html><html lang="en"><head>
         <meta charset="utf-8">
         <title>${meta.title}</title>
@@ -34,8 +34,8 @@ export default {
       });
     }
 
-    /* 4) всё прочее отправляем прямо на CloudFront */
-    url.hostname = "d2rmojcfi76x8t.cloudfront.net";     // ваш CloudFront хост
-    return fetch(url.toString(), request);
+    /* 4. всё остальное → CloudFront */
+    url.hostname = "d2rmojcfi76x8t.cloudfront.net";
+    return fetch(url, req);
   }
-};
+}
