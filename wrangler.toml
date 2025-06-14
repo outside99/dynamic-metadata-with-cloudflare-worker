@@ -1,101 +1,41 @@
-#:schema node_modules/wrangler/config-schema.json
-name = "weweb-dynamic-metadata"
-main = "src/index.ts"
-compatibility_date = "2024-04-19"
-compatibility_flags = ["nodejs_compat"]
+export default {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
 
-# Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
-# Docs:
-# - https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-# Note: Use secrets to store sensitive data.
-# - https://developers.cloudflare.com/workers/configuration/secrets/
-# [vars]
-# MY_VARIABLE = "production_value"
+    /* 1) ловим /article-public/<id> или с конечным слэшем */
+    const match = url.pathname.match(/^\/article-public\/(\d+)\/?$/);
+    if (match) {
+      const id = match[1];
 
-# Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai
-# [ai]
-# binding = "AI"
+      /* 2) берём метаданные из публичного Xano */
+      const meta = await fetch(
+        `https://xdil-abvj-o7rq.e2.xano.io/api:d9B0M9b/public_content_article_metadata/${id}`
+      ).then(r => r.json() as Promise<{
+        title: string; description: string; image?: string;
+      }>);
 
-# Bind an Analytics Engine dataset. Use Analytics Engine to write analytics within your Pages Function.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#analytics-engine-datasets
-# [[analytics_engine_datasets]]
-# binding = "MY_DATASET"
+      /* 3) генерируем короткий HTML с OG-тегами */
+      const html = `<!doctype html><html lang="en"><head>
+        <meta charset="utf-8">
+        <title>${meta.title}</title>
+        <meta property="og:title" content="${meta.title}">
+        <meta property="og:description" content="${meta.description}">
+        <meta property="og:image" content="${meta.image ?? ""}">
+        <meta property="og:url"
+              content="https://www.asymmetrixintelligence.com/article-public/${id}">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta http-equiv="refresh"
+              content="0;url=https://www.asymmetrixintelligence.com/article-public/${id}">
+      </head><body></body></html>`;
 
-# Bind a headless browser instance running on Cloudflare's global network.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#browser-rendering
-# [browser]
-# binding = "MY_BROWSER"
+      return new Response(html, {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" }
+      });
+    }
 
-# Bind a D1 database. D1 is Cloudflare’s native serverless SQL database.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#d1-databases
-# [[d1_databases]]
-# binding = "MY_DB"
-# database_name = "my-database"
-# database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-# Bind a dispatch namespace. Use Workers for Platforms to deploy serverless functions programmatically on behalf of your customers.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#dispatch-namespace-bindings-workers-for-platforms
-# [[dispatch_namespaces]]
-# binding = "MY_DISPATCHER"
-# namespace = "my-namespace"
-
-# Bind a Durable Object. Durable objects are a scale-to-zero compute primitive based on the actor model.
-# Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects
-# [[durable_objects.bindings]]
-# name = "MY_DURABLE_OBJECT"
-# class_name = "MyDurableObject"
-
-# Durable Object migrations.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#migrations
-# [[migrations]]
-# tag = "v1"
-# new_classes = ["MyDurableObject"]
-
-# Bind a Hyperdrive configuration. Use to accelerate access to your existing databases from Cloudflare Workers.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#hyperdrive
-# [[hyperdrive]]
-# binding = "MY_HYPERDRIVE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Bind an mTLS certificate. Use to present a client certificate when communicating with another service.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#mtls-certificates
-# [[mtls_certificates]]
-# binding = "MY_CERTIFICATE"
-# certificate_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-# Bind a Queue producer. Use this binding to schedule an arbitrary task that may be processed later by a Queue consumer.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#queues
-# [[queues.producers]]
-# binding = "MY_QUEUE"
-# queue = "my-queue"
-
-# Bind a Queue consumer. Queue Consumers can retrieve tasks scheduled by Producers to act on them.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#queues
-# [[queues.consumers]]
-# queue = "my-queue"
-
-# Bind an R2 Bucket. Use R2 to store arbitrarily large blobs of data, such as files.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#r2-buckets
-# [[r2_buckets]]
-# binding = "MY_BUCKET"
-# bucket_name = "my-bucket"
-
-# Bind another Worker service. Use this binding to call another Worker without network overhead.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-# [[services]]
-# binding = "MY_SERVICE"
-# service = "my-service"
-
-# Bind a Vectorize index. Use to store and query vector embeddings for semantic search, classification and other vector search use-cases.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#vectorize-indexes
-# [[vectorize]]
-# binding = "MY_INDEX"
-# index_name = "my-index"
+    /* 4) всё прочее отправляем прямо на CloudFront */
+    url.hostname = "d2rmojcfi76x8t.cloudfront.net";     // ваш CloudFront хост
+    return fetch(url.toString(), request);
+  }
+};
