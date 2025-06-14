@@ -3,7 +3,7 @@ export const config = {
   patterns: [
       {
           pattern: "/event/[^/]+",
-          metaDataEndpoint: "https://xeo6-2sgh-ehgj.n7.xano.io/api:8wD10mRd/event/{id}/meta"
+          metaDataEndpoint: "https://xdil-abvj-o7rq.e2.xano.io/api:Z3F6JUiu/public_content_article_matadate/{content_id}"
       },
       {
           pattern: "/team/profile/[^/]+",
